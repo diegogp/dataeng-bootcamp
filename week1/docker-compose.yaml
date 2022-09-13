@@ -1,0 +1,51 @@
+version: "3.0"
+services:
+  ingestion:
+      tty: true
+      stdin_open: true
+      container_name: ingestion
+      build:
+        context: ingestion
+      volumes:
+        - ./ingestion:/code/ingestion
+        - ./data:/code/raw_data
+      networks:
+        - postgres-network
+      ports:
+        - "8889:8889"
+  postgres:
+      container_name: postgres
+      hostname: postgres
+      image: postgres:13
+      ports:
+        - "5432:5432"
+      environment:
+        - POSTGRES_PASSWORD=root
+        - POSTGRES_DB=ny_taxi
+      restart: always
+      healthcheck:
+        test: [ "CMD", "pg_isready", "-q", "-d", "ny_taxi", "-U", "root" ]
+        timeout: 40s
+        interval: 2s
+        retries: 20
+      networks:
+        - postgres-network
+      volumes:
+        - ./ny_taxi_postgres_data:/var/lib/postgresql/data:rw
+  pgadmin:
+      container_name: pgadmin
+      hostname: pgadmin
+      image: dpage/pgadmin4
+      environment:
+        - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+        - PGADMIN_DEFAULT_PASSWORD=root
+      ports:
+        - "8080:80"
+      networks:
+        - postgres-network
+
+networks:
+  postgres-network:
+    name: postgres-network
+
+

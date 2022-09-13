@@ -1,0 +1,7 @@
+psycopg2
+psycopg2-binary
+sqlalchemy==1.4.23
+jupyter
+pandas
+pyarrow==9.0.0
+fastparquet

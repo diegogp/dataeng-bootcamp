@@ -1,0 +1,11 @@
+*.json
+*.json:Zone.Identifier
+/week1/ny_postgres_data
+/week1/postgres
+/week1/data
+/week2/airflow-docker/logs
+/week2/airflow-docker/plugins
+/week2/airflow-docker/.env
+/week2/airflow-docker/.vscode
+/week2/airflow-docker/terraform/.terraform
+/week2/airflow-docker/terraform/.terraform.*
