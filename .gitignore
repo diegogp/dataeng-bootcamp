@@ -11,7 +11,7 @@ week1/ingestion/.ipynb_checkpoints
 /week2/airflow-docker/.vscode
 /week2/airflow-docker/terraform/.terraform
 /week2/airflow-docker/terraform/.terraform.*
-/week2/airflow-docker/terraform.tfstate*
+/week2/airflow-docker/terraform/terraform.tfstate*
 
 # Local .terraform directories
 **/.terraform/*
