@@ -14,15 +14,11 @@ from ingestion import ingest_callable
 
 AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 
-
-URL_PREFIX = "https://d37ci6vzurychx.cloudfront.net/trip-data/"
-#URL_TEMPLATE = URL_PREFIX + 'yellow_tripdata_{{ execution_date.strftime(\'%Y-%m\') }}.parquet' 
-URL_TEMPLATE = URL_PREFIX + 'yellow_tripdata_2021-01.parquet'
-#OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + '/output_{{ execution_date.strftime(\'%Y-%m\') }}.parquet'
-OUTPUT_FILENAME = 'output_yellow_taxi_data.parquet'
-OUTPUT_FILEPATH  = AIRFLOW_HOME + '/' + OUTPUT_FILENAME
-#TABLE_NAME_TEMPLATE = 'yellow_taxi_{{ execution_date.strftime(\'%Y_%m\') }}'
-TABLE_NAME_TEMPLATE = 'yellow_taxi_data'
+YELLOW_TAXI_URL_PREFIX = "https://d37ci6vzurychx.cloudfront.net/trip-data/"
+YELLOW_TAXI_URL = YELLOW_TAXI_URL_PREFIX + 'yellow_tripdata_{{ data_interval_start.strftime(\'%Y-%m\') }}.parquet'
+YELLOW_TAXI_OUTPUT_PATH = AIRFLOW_HOME + '/yellow_tripdata_{{ data_interval_start.strftime(\'%Y-%m\') }}.parquet'
+YELLOW_TAXI_GCS_OUTPUT_PATH = 'raw/yellow_tripdata/{{ data_interval_start.strftime(\'%Y\') }}/yellow_tripdata_{{ data_interval_start.strftime(\'%Y-%m\') }}.parquet'
+YELLOW_TAXI_TABLE_NAME = 'yellow_taxi_data'
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
@@ -51,23 +47,23 @@ def upload_to_gcs(bucket, object_name, local_file):
 
 default_args = {
     "owner": "airflow",
-    "start_date": days_ago(1),
     "depends_on_past": False,
     "retries": 1
     }
 
 with DAG(
-    dag_id="data_ingestion_gcp_dag",
-    schedule_interval="@daily",
+    dag_id="yellow_taxi_data",
+    schedule_interval="0 6 2 * *",
+    start_date=datetime(2022, 1, 1),
     default_args=default_args,
-    catchup=False,
-    max_active_runs=1,
+    catchup=True,
+    max_active_runs=3,
     tags=['dtc-de'],
 ) as dag:
 
     wget_task = BashOperator(
         task_id='wget',
-        bash_command=f'curl -sSL {URL_TEMPLATE} > {OUTPUT_FILEPATH}'
+        bash_command=f'curl -sSLf {YELLOW_TAXI_URL} > {YELLOW_TAXI_OUTPUT_PATH}'
     )
 
     upload_to_gcs_task = PythonOperator(
@@ -75,25 +71,31 @@ with DAG(
         python_callable=upload_to_gcs,
         op_kwargs={
             "bucket": BUCKET,
-            "object_name": f"raw/{OUTPUT_FILENAME}", #DEST
-            "local_file": OUTPUT_FILEPATH, #SRC
+            "object_name": YELLOW_TAXI_GCS_OUTPUT_PATH, #DEST
+            "local_file": YELLOW_TAXI_OUTPUT_PATH, #SRC
 
         }
     )
 
-    bigquery_external_table_task = BigQueryCreateExternalTableOperator(
-        task_id="bigquery_external_table",
-        table_resource={
-            "tableReference": {
-                "projectId": PROJECT_ID,
-                "datasetId": BIGQUERY_DATASET,
-                "tableId": "external_table"
-            },
-            "externalDataConfiguration": {
-                "sourceFormat": "PARQUET",
-                "sourceUris": [f"gs://{BUCKET}/raw/{OUTPUT_FILENAME}"],
-            },
-        },
+    # bigquery_external_table_task = BigQueryCreateExternalTableOperator(
+    #     task_id="bigquery_external_table",
+    #     table_resource={
+    #         "tableReference": {
+    #             "projectId": PROJECT_ID,
+    #             "datasetId": BIGQUERY_DATASET,
+    #             "tableId": "external_table"
+    #         },
+    #         "externalDataConfiguration": {
+    #             "sourceFormat": "PARQUET",
+    #             "sourceUris": [f"gs://{BUCKET}/{YELLOW_TAXI_GCS_OUTPUT_PATH}"],
+    #         },
+    #     },
+    # )
+
+    rm_temp_files_task = BashOperator(
+        task_id="rm_temp_files",
+        bash_command=f'rm {YELLOW_TAXI_OUTPUT_PATH}'
+
     )
 
-    wget_task >> upload_to_gcs_task >> bigquery_external_table_task
+    wget_task >> upload_to_gcs_task >> rm_temp_files_task # bigquery_external_table_task >>
